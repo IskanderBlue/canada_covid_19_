@@ -19,17 +19,20 @@ deaths_by_country <- deaths %>%
   t() %>% 
   tibble::as_tibble(rownames = NA) %>% 
   tibble::rownames_to_column("Date") %>% 
+  dplyr::select(-China) %>% 
   dplyr::mutate(`Date` = gsub("X", "", `Date`)) %>%
   dplyr::mutate(`Date` = factor(`Date`, levels = `Date`))
 
-tack_days_since <- function(x, lst) {
+tack_days_since <- function(x, lst, dfm, back) {
   nm <- names(lst)[x]
-  df <- data.frame(days = paste0("d+", 0:(length(lst[[x]])-1)), nm = lst[[x]])
-  df$days <- factor(df$days, levels = df[["days"]])
-  names(df) <- c("days", nm)
-  return(df)
+  first <- match(lst[[x]], t(dfm[, x]))[1] - back
+  days_strings <- c(paste0("d-", back:1), paste0("d+", 0:(length(lst[[x]])-1)))
+  tacked <- data.frame(days = days_strings, nm = dfm[first:nrow(dfm), x])
+  tacked$days <- factor(tacked$days, levels = tacked[["days"]])
+  names(tacked) <- c("days", nm)
+  return(tacked)
 }
-dropper <- function(x) {x[x > 0]}
+dropper <- function(x, geq) {x[x >= geq]}
 
 library(shiny)
 
@@ -59,6 +62,12 @@ ui <- shinydashboard::dashboardPage(
       format = shinyWidgets::wNumbFormat(decimals = 0), 
       color = "#27ae60", inline = TRUE,
       height = hei, width = wid), 
+    shinyWidgets::noUiSliderInput(
+      inputId = "back", label = "d-x shown:", min = 1, max = 10, 
+      value = 3, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#27ae60", inline = TRUE,
+      height = hei, width = wid), 
     shiny::numericInput("plt_hei", "Plot Height:", value = 650)
   ),
   shinydashboard::dashboardBody(
@@ -75,9 +84,9 @@ server <- function(input, output, session) {
     countries_with_deaths <- deaths_by_country[
       c(FALSE, sapply(deaths_by_country[2:length(deaths_by_country)], 
                       function(x) max(x, na.rm = T) > input$mind))]
-    countries_with_deaths[countries_with_deaths < input$mind] <- 0
-    dropped <- apply(countries_with_deaths, 2, dropper)
-    tacked <- lapply(1:length(dropped), tack_days_since, dropped)
+    # countries_with_deaths[countries_with_deaths < input$mind] <- 0
+    dropped <- apply(countries_with_deaths, 2, dropper, input$mind)
+    tacked <- lapply(1:length(dropped), tack_days_since, dropped, countries_with_deaths, input$back)
     merged <- merge(tacked[[1]], tacked[[2]], by = "days", all = TRUE)
     for (i in 3:length(tacked)) {
       merged <- merge(merged, tacked[[i]], by = "days", all = TRUE)
@@ -91,11 +100,26 @@ server <- function(input, output, session) {
     plt <- plotly::plot_ly(valid_countries(), type = 'scatter', mode = 'lines+markers',
                            height = input$plt_hei) 
     for (i in countries) {
-      plt_df <- valid_countries() %>% dplyr::rename(y=i)
+      plt_df <- valid_countries() %>% 
+        dplyr::rename(y=i) %>% 
+        dplyr::mutate(periods = (input$back * -1):(nrow(.)-(input$back + 1)) )
+      mdl <- lm(log(plt_df$y) ~ plt_df$periods)
+      print(plt_df$periods)
+      print(summary(mdl))
+      plt_df$preds <- exp(predict(mdl, list(Time=plt_df$periods)))
+      print(plt_df$preds)
+      trace_col <- paste0("rgb(", paste0(sample(255, 3), collapse=", "), ")")
+      
       plt <- plt %>%
         plotly::add_trace(data = plt_df, x = ~days, y = ~y, 
                           name = i, # paste0("Deaths in ", i), 
-                          mode = 'lines+markers')
+                          mode = 'markers', 
+                          marker = list(color = trace_col)) %>% 
+        plotly::add_trace(data = plt_df, x = ~days, y = ~preds, 
+                          name = NULL, #paste0("Exponential trend for ", i),
+                          line = list(color = trace_col), showlegend = FALSE,
+                          mode = 'lines')
+        
     }
     plt <- plt %>% plotly::layout(yaxis = list(title = "Deaths")
                                   # , 
@@ -110,7 +134,7 @@ server <- function(input, output, session) {
     shiny::selectInput(
       "countries_selected", label = "Select countries:", 
       choices = shiny::isolate(names(valid_countries())[-1]), 
-      selected = c("Canada", "US", "Italy", "Korea, South", "China"), 
+      selected = c("Canada", "US", "Italy", "Korea, South"), 
       multiple = TRUE)
   })
   
@@ -120,7 +144,14 @@ server <- function(input, output, session) {
                             choices = names(valid_countries())[-1], 
                             selected = selected_countries)
   }, ignoreInit = TRUE)
-
+  
+  shiny::observeEvent(input$days, {
+    backs <- input$back
+    if (input$days <= 10) {
+      shinyWidgets::updateNoUiSliderInput(session, "back", value = backs, 
+                                          range = c(0, input$days))
+    }
+  }, ignoreInit = TRUE)
 }
 
 # Run the application 
