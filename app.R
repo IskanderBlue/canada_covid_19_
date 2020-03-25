@@ -34,44 +34,41 @@ dropper <- function(x) {x[x > 0]}
 library(shiny)
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-   
-   # Application title
-   titlePanel("Days Since X Deaths"),
-   
-   # Sidebar with a slider input for number of bins 
-   sidebarLayout(
-      sidebarPanel(
-        shinyWidgets::noUiSliderInput(
-          inputId = "r", label = "R:", min = 0.01, max = 6, 
-          value = 2.2, step = 0.01, orientation = ori, 
-          format = shinyWidgets::wNumbFormat(decimals = 2), 
-          color = "#2980b9", inline = TRUE,
-          height = hei, width = wid), shiny::br(), 
-        shinyWidgets::noUiSliderInput(
-          inputId = "mind", label = "Minimum deaths:", min = 1, max = 25, 
-          value = 10, step = 1, orientation = ori, 
-          format = shinyWidgets::wNumbFormat(decimals = 0), 
-          color = "#c0392b", inline = TRUE,
-          height = hei, width = wid), shiny::br(), 
-        shiny::uiOutput("country_selector"), shiny::br(),
-        shinyWidgets::noUiSliderInput(
-          inputId = "days", label = "Days shown:", min = 1, max = 60, 
-          value = 10, step = 1, orientation = ori, 
-          format = shinyWidgets::wNumbFormat(decimals = 0), 
-          color = "#27ae60", inline = TRUE,
-          height = hei, width = wid)
-      ),
-      
-      # Show a plot of the generated distribution
-      mainPanel(
-         plotly::plotlyOutput("days_since_min")
-      )
-   )
+ui <- shinydashboard::dashboardPage(
+  # Application title
+  title = "Covid-19 Projection",
+  shinydashboard::dashboardHeader(
+    title = shiny::textOutput("days_since")),
+  shinydashboard::dashboardSidebar(
+    shinyWidgets::noUiSliderInput(
+      inputId = "r", label = "R:", min = 0.01, max = 6, 
+      value = 2.2, step = 0.01, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 2), 
+      color = "#2980b9", inline = TRUE,
+      height = hei, width = wid), shiny::br(), 
+    shinyWidgets::noUiSliderInput(
+      inputId = "mind", label = "Minimum deaths:", min = 1, max = 25, 
+      value = 10, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#c0392b", inline = TRUE,
+      height = hei, width = wid), shiny::br(), 
+    shiny::uiOutput("country_selector"), shiny::br(),
+    shinyWidgets::noUiSliderInput(
+      inputId = "days", label = "Days shown:", min = 1, max = 60, 
+      value = 10, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#27ae60", inline = TRUE,
+      height = hei, width = wid)
+  ),
+  shinydashboard::dashboardBody(
+    plotly::plotlyOutput("days_since_min")
+  )
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  
+  output$days_since <- shiny::renderText({paste0("Days since ", input$mind, " Deaths")})
   
   valid_countries <- shiny::reactive({
     countries_with_deaths <- deaths_by_country[
@@ -104,18 +101,20 @@ server <- function(input, output, session) {
   output$days_since_min <- plotly::renderPlotly({plt()})
   
   output$country_selector <- shiny::renderUI({
-    shinyWidgets::pickerInput(
+    shiny::selectInput(
       "countries_selected", label = "Select countries:", 
       choices = shiny::isolate(names(valid_countries())[-1]), 
       selected = c("Canada", "US", "Italy", "Korea, South", "China"), 
       multiple = TRUE)
   })
+  
   shiny::observeEvent(valid_countries(), {
     selected_countries <- input$countries_selected
-    shinyWidgets::updatePickerInput(session, "countries_selected", 
-                                    choices = names(valid_countries())[-1], 
-                                    selected = selected_countries)
+    shiny::updateSelectInput(session, "countries_selected", 
+                            choices = names(valid_countries())[-1], 
+                            selected = selected_countries)
   }, ignoreInit = TRUE)
+
 }
 
 # Run the application 
