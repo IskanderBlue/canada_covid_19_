@@ -58,7 +58,8 @@ ui <- shinydashboard::dashboardPage(
       value = 10, step = 1, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 0), 
       color = "#27ae60", inline = TRUE,
-      height = hei, width = wid)
+      height = hei, width = wid), 
+    shiny::numericInput("plt_hei", "Plot Height:", value = 650)
   ),
   shinydashboard::dashboardBody(
     plotly::plotlyOutput("days_since_min")
@@ -87,15 +88,20 @@ server <- function(input, output, session) {
   
   plt <- shiny::reactive({
     countries <- input[["countries_selected"]]
-    plt <- plotly::plot_ly(valid_countries(), type = 'scatter') 
+    plt <- plotly::plot_ly(valid_countries(), type = 'scatter', mode = 'lines+markers',
+                           height = input$plt_hei) 
     for (i in countries) {
       plt_df <- valid_countries() %>% dplyr::rename(y=i)
       plt <- plt %>%
         plotly::add_trace(data = plt_df, x = ~days, y = ~y, 
-                          name = paste0("Deaths in ", i), 
+                          name = i, # paste0("Deaths in ", i), 
                           mode = 'lines+markers')
     }
-    plt <- plt %>% plotly::layout(yaxis = list(title = "Deaths"))
+    plt <- plt %>% plotly::layout(yaxis = list(title = "Deaths")
+                                  # , 
+                                  # paper_bgcolor = "rgb(0, 0, 0)",
+                                  # plot_bgcolor = "rgb(34, 45, 50)"
+                                  )
     return(plt)
   })
   output$days_since_min <- plotly::renderPlotly({plt()})
