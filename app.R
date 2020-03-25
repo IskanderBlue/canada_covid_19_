@@ -54,6 +54,7 @@ ui <- fluidPage(
           format = shinyWidgets::wNumbFormat(decimals = 0), 
           color = "#c0392b", inline = TRUE,
           height = hei, width = wid), shiny::br(), 
+        shiny::uiOutput("country_selector"), shiny::br(),
         shinyWidgets::noUiSliderInput(
           inputId = "days", label = "Days shown:", min = 1, max = 60, 
           value = 10, step = 1, orientation = ori, 
@@ -70,34 +71,53 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
-   plt <- shiny::reactive({
-     countries_with_deaths <- deaths_by_country[c(FALSE, sapply(deaths_by_country[2:length(deaths_by_country)], 
-                                                                function(x) max(x, na.rm = T) > input$mind))]
-     countries_with_deaths[countries_with_deaths < input$mind] <- 0
-     dropped <- apply(countries_with_deaths, 2, dropper)
-     tacked <- lapply(1:length(dropped), tack_days_since, dropped)
-     merged <- merge(tacked[[1]], tacked[[2]], by = "days", all = TRUE)
-     for (i in 3:length(tacked)) {
-       merged <- merge(merged, tacked[[i]], by = "days", all = TRUE)
-     }
-     merged <- merged[1:input$days, ]
-     plt <- plotly::plot_ly(merged, 
-                            x = ~days, 
-                            y = ~Canada, 
-                            name = 'Canadian Deaths', 
-                            type = 'scatter', 
-                            mode = 'lines+markers') %>%
-       plotly::add_trace(y = ~China, name = 'Chinese Deaths', mode = 'lines+markers') %>%
-       plotly::add_trace(y = ~Italy, name = 'Italian Deaths', mode = 'lines+markers') %>%
-       plotly::add_trace(y = ~US, name = 'American Deaths', mode = 'lines+markers') %>% 
-       plotly::add_trace(y = ~`Korea, South`, name = 'Korean Deaths', mode = 'lines+markers') %>% 
-       plotly::layout(yaxis = list(title = "Deaths"))
-     return(plt)
-   })
-   output$days_since_min <- plotly::renderPlotly({plt()})
+server <- function(input, output, session) {
+  
+  valid_countries <- shiny::reactive({
+    countries_with_deaths <- deaths_by_country[
+      c(FALSE, sapply(deaths_by_country[2:length(deaths_by_country)], 
+                      function(x) max(x, na.rm = T) > input$mind))]
+    countries_with_deaths[countries_with_deaths < input$mind] <- 0
+    dropped <- apply(countries_with_deaths, 2, dropper)
+    tacked <- lapply(1:length(dropped), tack_days_since, dropped)
+    merged <- merge(tacked[[1]], tacked[[2]], by = "days", all = TRUE)
+    for (i in 3:length(tacked)) {
+      merged <- merge(merged, tacked[[i]], by = "days", all = TRUE)
+    }
+    merged <- merged[1:input$days, ]
+    return(merged)
+  })
+  
+  plt <- shiny::reactive({
+    countries <- input[["countries_selected"]]
+    plt <- plotly::plot_ly(valid_countries(), type = 'scatter') 
+    for (i in countries) {
+      plt_df <- valid_countries() %>% dplyr::rename(y=i)
+      plt <- plt %>%
+        plotly::add_trace(data = plt_df, x = ~days, y = ~y, 
+                          name = paste0("Deaths in ", i), 
+                          mode = 'lines+markers')
+    }
+    plt <- plt %>% plotly::layout(yaxis = list(title = "Deaths"))
+    return(plt)
+  })
+  output$days_since_min <- plotly::renderPlotly({plt()})
+  
+  output$country_selector <- shiny::renderUI({
+    shinyWidgets::pickerInput(
+      "countries_selected", label = "Select countries:", 
+      choices = shiny::isolate(names(valid_countries())[-1]), 
+      selected = c("Canada", "US", "Italy", "Korea, South", "China"), 
+      multiple = TRUE)
+  })
+  shiny::observeEvent(valid_countries(), {
+    selected_countries <- input$countries_selected
+    shinyWidgets::updatePickerInput(session, "countries_selected", 
+                                    choices = names(valid_countries())[-1], 
+                                    selected = selected_countries)
+  }, ignoreInit = TRUE)
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
+# rsconnect::deployApp()
