@@ -47,6 +47,28 @@ find_position <- function(vec, pred_per) {
   max(last_non_na - pred_per, 1):last_non_na
 }
 
+
+#' @param vec vector of integers, predicted values
+#' @param iterations, integer, number of iterations to extend vec by
+predict_for_na <- function(vec, iterations, coef, reduction) {
+  predder <- function(x, chng, cf = coef) {
+    x * exp(cf - chng)
+  }
+  reduction <- log(1/(1-reduction)) # Convert countermeasure effectiveness to reduction in growth rate
+  if (iterations > 0) {
+    for (i in 1:iterations) {
+      if (i < 18) {
+        vec <- c(vec, predder(vec[length(vec)], chng = 0))
+      } else if (i < 27) {
+        vec <- c(vec, predder(vec[length(vec)], chng = ((i-17)/10) * reduction))
+      } else {
+        vec <- c(vec, predder(vec[length(vec)], chng = reduction))
+      }
+    }
+  }
+  return(vec)
+}
+
 library(shiny)
 
 # Define UI for application that draws a histogram
@@ -58,8 +80,8 @@ ui <- shinydashboard::dashboardPage(
   shinydashboard::dashboardSidebar(
     shiny::uiOutput("country_selector"), shiny::br(),
     shinyWidgets::noUiSliderInput(
-      inputId = "r", label = "R:", min = 0.01, max = 6, 
-      value = 2.2, step = 0.01, orientation = ori, 
+      inputId = "r", label = "Countermeasure effectiveness:", min = 0, max = 0.99, 
+      value = 0.5, step = 0.01, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 2), 
       color = "#2980b9", inline = TRUE,
       height = hei, width = wid), shiny::br(), 
@@ -71,7 +93,7 @@ ui <- shinydashboard::dashboardPage(
       height = hei, width = wid), shiny::br(), 
     
     shinyWidgets::noUiSliderInput(
-      inputId = "mind", label = "Minimum deaths:", min = 1, max = 25, 
+      inputId = "mind", label = "Minimum deaths:", min = 10, max = 25, 
       value = 10, step = 1, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 0), 
       color = "#c0392b", inline = TRUE,
@@ -105,7 +127,6 @@ server <- function(input, output, session) {
       c(FALSE, sapply(deaths_by_country[2:length(deaths_by_country)], 
                       function(x) max(x, na.rm = T) > input$mind))]
     deaths_by_day <- as.data.frame(diff(as.matrix(countries_with_deaths))) 
-    death_growth <- as.data.frame(diff(as.matrix(deaths_by_day)))
     death_dates <- apply(deaths_by_day, 2, function(x) {as.character(deaths_by_country$Date[-1])})
     dropped <- apply(deaths_by_day, 2, dropper, input$mind)
     tacked <- lapply(1:length(dropped), tack_days_since, dropped, deaths_by_day, input$back)
@@ -147,10 +168,16 @@ server <- function(input, output, session) {
         dplyr::mutate(days = c(paste0("d", (input$back * -1):(-1)), 
                                paste0("d+", 0:(nrow(.)-(input$back + 1)))))
       
-      fit_pos <- find_position(plt_df$y, input$pred_per)
-      periods <- plt_df$periods[fit_pos]
+      fit_pos <- find_position(plt_df$y, input$pred_per) 
+      periods <- plt_df$periods[fit_pos] # select only periods desired to fit model
       mdl <- lm(log(plt_df$y[fit_pos]+0.01) ~ periods)
-      plt_df$preds <- exp(predict(mdl, list(periods=plt_df$periods)))
+      itrs <- plt_df$periods[length(plt_df$periods)] - periods[length(periods)] # Number of times to iterate through predict_not_na
+      print(plt_df$periods[1:fit_pos[length(fit_pos)]])
+      predicted <- exp(predict(mdl, list(periods=plt_df$periods[1:fit_pos[length(fit_pos)]])))
+      print(predicted)
+      predicted <- predict_for_na(predicted, itrs, mdl$coefficients[[2]], input$r)
+      plt_df$preds <- predicted
+      print(predicted)
       trace_col <- paste0("rgb(", paste0(sample(255, 3), collapse=", "), ")")
 
       plt <- plt %>%
