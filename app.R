@@ -55,15 +55,23 @@ predict_for_na <- function(vec, iterations, coef, reduction) {
     x * exp(cf - chng)
   }
   reduction <- log(1/(1-reduction)) # Convert countermeasure effectiveness to reduction in growth rate
+  mn <- 20.2 # Onset to death, https://www.mdpi.com/2077-0383/9/2/538/htm
+  sd <- 11.6 # sd of onset to death
+  mu <- log(mn) - 0.5* log((sd/mn)^2 + 1) # lognormal param
+  sigma <- sqrt(log((sd/mn)^2+1)) # lognormal param
+  prop_reduction <- plnorm(1:iterations,mu,sigma) # proportion of effect up to x days from change
+  
   if (iterations > 0) {
     for (i in 1:iterations) {
-      if (i < 18) {
-        vec <- c(vec, predder(vec[length(vec)], chng = 0))
-      } else if (i < 27) {
-        vec <- c(vec, predder(vec[length(vec)], chng = ((i-17)/10) * reduction))
-      } else {
-        vec <- c(vec, predder(vec[length(vec)], chng = reduction))
-      }
+      vec <- c(vec, predder(vec[length(vec)], chng = prop_reduction[i] * reduction))
+      # Even implementation over 10 days
+      # if (i < 18) {
+      #   vec <- c(vec, predder(vec[length(vec)], chng = 0))
+      # } else if (i < 27) {
+      #   vec <- c(vec, predder(vec[length(vec)], chng = ((i-17)/10) * reduction))
+      # } else {
+      #   vec <- c(vec, predder(vec[length(vec)], chng = reduction))
+      # }
     }
   }
   return(vec)
@@ -100,7 +108,7 @@ ui <- shinydashboard::dashboardPage(
       height = hei, width = wid), shiny::br(), 
     shinyWidgets::noUiSliderInput(
       inputId = "days", label = "Days shown:", min = 1, max = 60, 
-      value = 10, step = 1, orientation = ori, 
+      value = 40, step = 1, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 0), 
       color = "#27ae60", inline = TRUE,
       height = hei, width = wid), 
