@@ -76,12 +76,16 @@ find_position <- function(vec, pred_per) {
   max(last_non_na - pred_per, 1):last_non_na
 }
 
+<<<<<<< HEAD
 #' Predicts subsequent values of an exponentially changing vector.  
 #' 
 #' For a given `coef` and `reduction` of that coefficient, returns `vec` with 
 #' an additional `iterations` elements that have increased exponentially by 
 #' `coef` with `reduction` added slowly as a lognormal distribution.  
 #' See onset to death, https://www.mdpi.com/2077-0383/9/2/538/htm
+=======
+
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
 #' @param vec vector of integers, predicted values
 #' @param iterations, integer, number of iterations to extend vec by
 predict_for_na <- function(vec, iterations, coef, reduction) {
@@ -89,6 +93,7 @@ predict_for_na <- function(vec, iterations, coef, reduction) {
     x * exp(cf - chng)
   }
   reduction <- log(1/(1-reduction)) # Convert countermeasure effectiveness to reduction in growth rate
+<<<<<<< HEAD
   mn <- 20.2 # Onset to death, https://www.mdpi.com/2077-0383/9/2/538/htm
   sd <- 11.6 # sd of onset to death
   mu <- log(mn) - 0.5* log((sd/mn)^2 + 1) # lognormal param
@@ -106,6 +111,17 @@ predict_for_na <- function(vec, iterations, coef, reduction) {
       # } else {
       #   vec <- c(vec, predder(vec[length(vec)], chng = reduction))
       # }
+=======
+  if (iterations > 0) {
+    for (i in 1:iterations) {
+      if (i < 18) {
+        vec <- c(vec, predder(vec[length(vec)], chng = 0))
+      } else if (i < 27) {
+        vec <- c(vec, predder(vec[length(vec)], chng = ((i-17)/10) * reduction))
+      } else {
+        vec <- c(vec, predder(vec[length(vec)], chng = reduction))
+      }
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
     }
   }
   return(vec)
@@ -122,16 +138,22 @@ ui <- shinydashboard::dashboardPage(
     title = shiny::textOutput("days_since")), # Adjusts 'days since' according to min deaths inputted.
   
   shinydashboard::dashboardSidebar(
+<<<<<<< HEAD
     
     shiny::uiOutput("country_selector"), shiny::br(), # Selects countries to include
     
     shinyWidgets::noUiSliderInput( # Slider to set countermeasure effectiveness
+=======
+    shiny::uiOutput("country_selector"), shiny::br(),
+    shinyWidgets::noUiSliderInput(
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
       inputId = "r", label = "Countermeasure effectiveness:", min = 0, max = 0.99, 
       value = 0.5, step = 0.01, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 2), 
       color = "#2980b9", inline = TRUE,
       height = hei, width = wid), shiny::br(), 
     
+<<<<<<< HEAD
     shinyWidgets::awesomeCheckbox("show_options", "Show extra options."), shiny::br(),
     
     shiny::conditionalPanel(
@@ -175,6 +197,28 @@ ui <- shinydashboard::dashboardPage(
     
   ), # close dashboardSidebar
   
+=======
+    shinyWidgets::noUiSliderInput(
+      inputId = "mind", label = "Minimum deaths:", min = 10, max = 25, 
+      value = 10, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#c0392b", inline = TRUE,
+      height = hei, width = wid), shiny::br(), 
+    shinyWidgets::noUiSliderInput(
+      inputId = "days", label = "Days shown:", min = 1, max = 60, 
+      value = 10, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#27ae60", inline = TRUE,
+      height = hei, width = wid), 
+    shinyWidgets::noUiSliderInput(
+      inputId = "back", label = "d-x shown:", min = 1, max = 10, 
+      value = 3, step = 1, orientation = ori, 
+      format = shinyWidgets::wNumbFormat(decimals = 0), 
+      color = "#27ae60", inline = TRUE,
+      height = hei, width = wid), 
+    shiny::numericInput("plt_hei", "Plot Height:", value = 650)
+  ),
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
   shinydashboard::dashboardBody(
     shiny::fluidRow(
       shiny::column(
@@ -258,12 +302,20 @@ server <- function(input, output, session) {
     countries_with_deaths <- deaths_by_country[ # Drop countries with insufficient deaths.
       c(FALSE, sapply(deaths_by_country[2:length(deaths_by_country)], 
                       function(x) max(x, na.rm = T) > input$mind))]
+<<<<<<< HEAD
     deaths_by_day <- as.data.frame(diff(as.matrix(countries_with_deaths))) # Subtract each row from next; get daily change in deaths.
     death_dates <- apply(deaths_by_day, 2, function(x) {as.character(deaths_by_country$Date[-1])}) # Replace all death numbers with their dates (for later use)
     dropped <- apply(deaths_by_day, 2, dropper, input$mind) # Get list (won't fit in data.frame) of vectors of deaths after the cumulative minimum is reached (along with the position of the first element)
     tacked <- lapply(1:length(dropped), tack_days_since, dropped, deaths_by_day, input$back) # Tack days since cumulative minimum reached onto daily deaths for later joining.
     tacked_dates <- lapply(1:length(dropped), tack_days_since, dropped, death_dates, input$back) # Tack days since cumulative minimum reached onto daily deaths' dates for later joining.
     # Merge the data (and then the dates) together by days since cumulative minimum was reached.
+=======
+    deaths_by_day <- as.data.frame(diff(as.matrix(countries_with_deaths))) 
+    death_dates <- apply(deaths_by_day, 2, function(x) {as.character(deaths_by_country$Date[-1])})
+    dropped <- apply(deaths_by_day, 2, dropper, input$mind)
+    tacked <- lapply(1:length(dropped), tack_days_since, dropped, deaths_by_day, input$back)
+    tacked_dates <- lapply(1:length(dropped), tack_days_since, dropped, death_dates, input$back)
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
     merged <-       merge(tacked[[1]], tacked[[2]], by = "days", all = TRUE)
     merged_dates <- merge(tacked_dates[[1]], tacked_dates[[2]], by = "days", all = TRUE) 
     for (i in 3:length(tacked)) {
@@ -291,6 +343,7 @@ server <- function(input, output, session) {
         dplyr::mutate(days = c(paste0("d", (input$back * -1):(-1)), # add dates for all rows (otherwise no x values beyond last current date)
                                paste0("d+", 0:(nrow(.)-(input$back + 1)))))
       
+<<<<<<< HEAD
       fit_pos <- find_position(plt_df$y, input$pred_per) # Get positions of deaths to fit model
       periods <- plt_df$periods[fit_pos] # select only periods desired to fit model
       mdl <- lm(log(plt_df$y[fit_pos]+0.01) ~ periods) # fit model
@@ -299,6 +352,19 @@ server <- function(input, output, session) {
       predicted <- exp(predict(mdl, list(periods=plt_df$periods[1:fit_pos[length(fit_pos)]]))) # "Predict" up to present with model
       predicted <- predict_for_na(predicted, itrs, mdl$coefficients[[2]], input$r) # predict based on model and reduction in R
       plt_df$preds <- predicted
+=======
+      fit_pos <- find_position(plt_df$y, input$pred_per) 
+      periods <- plt_df$periods[fit_pos] # select only periods desired to fit model
+      mdl <- lm(log(plt_df$y[fit_pos]+0.01) ~ periods)
+      itrs <- plt_df$periods[length(plt_df$periods)] - periods[length(periods)] # Number of times to iterate through predict_not_na
+      print(plt_df$periods[1:fit_pos[length(fit_pos)]])
+      predicted <- exp(predict(mdl, list(periods=plt_df$periods[1:fit_pos[length(fit_pos)]])))
+      print(predicted)
+      predicted <- predict_for_na(predicted, itrs, mdl$coefficients[[2]], input$r)
+      plt_df$preds <- predicted
+      print(predicted)
+      trace_col <- paste0("rgb(", paste0(sample(255, 3), collapse=", "), ")")
+>>>>>>> fa611d6cd6901c32502d89f3ffadb159c5c4668e
 
       plt <- plt %>%
         # Add prediction lines
