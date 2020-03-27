@@ -120,45 +120,132 @@ ui <- shinydashboard::dashboardPage(
   title = "Covid-19 Projection",
   shinydashboard::dashboardHeader(
     title = shiny::textOutput("days_since")), # Adjusts 'days since' according to min deaths inputted.
+  
   shinydashboard::dashboardSidebar(
+    
     shiny::uiOutput("country_selector"), shiny::br(), # Selects countries to include
+    
     shinyWidgets::noUiSliderInput( # Slider to set countermeasure effectiveness
       inputId = "r", label = "Countermeasure effectiveness:", min = 0, max = 0.99, 
       value = 0.5, step = 0.01, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 2), 
       color = "#2980b9", inline = TRUE,
       height = hei, width = wid), shiny::br(), 
-    shinyWidgets::noUiSliderInput( # Slider to set prediction period
-      inputId = "pred_per", label = "Max. prediction period:", min = 3, max = 20, 
-      value = 10, step = 1, orientation = ori, 
-      format = shinyWidgets::wNumbFormat(decimals = 0), 
-      color = "#2980b9", inline = TRUE,
-      height = hei, width = wid), shiny::br(), 
     
-    shinyWidgets::noUiSliderInput( # Slider to set minimum cumulative deaths at d+0.
-      inputId = "mind", label = "Minimum deaths:", min = 10, max = 25, 
-      value = 10, step = 1, orientation = ori, 
-      format = shinyWidgets::wNumbFormat(decimals = 0), 
-      color = "#c0392b", inline = TRUE,
-      height = hei, width = wid), shiny::br(), 
-    shinyWidgets::noUiSliderInput( # Slider to adjust how many days included in graph.
-      inputId = "days", label = "Days shown:", min = 3, max = 60, 
-      value = 40, step = 1, orientation = ori, 
-      format = shinyWidgets::wNumbFormat(decimals = 0), 
-      color = "#27ae60", inline = TRUE,
-      height = hei, width = wid), 
-    shinyWidgets::noUiSliderInput( # Slider to adjust how many days before minimum deaths are reached to include.
-      inputId = "back", label = "d-x shown:", min = 1, max = 10, 
-      value = 3, step = 1, orientation = ori, 
-      format = shinyWidgets::wNumbFormat(decimals = 0), 
-      color = "#27ae60", inline = TRUE,
-      height = hei, width = wid), 
-    shiny::numericInput("plt_hei", "Plot Height:", value = 650)
-  ),
+    shinyWidgets::awesomeCheckbox("show_options", "Show extra options."), shiny::br(),
+    
+    shiny::conditionalPanel(
+      condition = "input.show_options == true", 
+      shinyWidgets::noUiSliderInput( # Slider to set prediction period
+        inputId = "pred_per", label = "Prediction period:", min = 3, max = 20, 
+        value = 10, step = 1, orientation = ori, 
+        format = shinyWidgets::wNumbFormat(decimals = 0), 
+        color = "#2980b9", inline = TRUE,
+        height = hei, width = wid), shiny::br(), 
+      
+      shinyWidgets::noUiSliderInput( # Slider to set minimum cumulative deaths at d+0.
+        inputId = "mind", label = "Minimum deaths:", min = 10, max = 25, 
+        value = 10, step = 1, orientation = ori, 
+        format = shinyWidgets::wNumbFormat(decimals = 0), 
+        color = "#c0392b", inline = TRUE,
+        height = hei, width = wid), shiny::br(), 
+      
+      shinyWidgets::noUiSliderInput( # Slider to adjust how many days included in graph.
+        inputId = "days", label = "Days shown:", min = 3, max = 60, 
+        value = 40, step = 1, orientation = ori, 
+        format = shinyWidgets::wNumbFormat(decimals = 0), 
+        color = "#27ae60", inline = TRUE,
+        height = hei, width = wid), shiny::br(),
+      
+      shinyWidgets::awesomeCheckbox("show_extras", "Show even more extra options."), shiny::br(),
+      
+      shiny::conditionalPanel(
+        condition = "input.show_extras == true", 
+        
+        shinyWidgets::noUiSliderInput( # Slider to adjust how many days before minimum deaths are reached to include.
+          inputId = "back", label = "d-x shown:", min = 1, max = 10, 
+          value = 3, step = 1, orientation = ori, 
+          format = shinyWidgets::wNumbFormat(decimals = 0), 
+          color = "#27ae60", inline = TRUE,
+          height = hei, width = wid), 
+        
+        shiny::numericInput("plt_hei", "Plot Height:", value = 650)
+      ) # close conditionalPanel
+    ) # close conditionalPanel
+    
+  ), # close dashboardSidebar
+  
   shinydashboard::dashboardBody(
-    plotly::plotlyOutput("days_since_min") # Show plot.
-  )
-)
+    shiny::fluidRow(
+      shiny::column(
+        width = 9, 
+        plotly::plotlyOutput("days_since_min") # Show plot.
+      ), 
+      shiny::column(
+        width = 3,
+        DT::dataTableOutput("dtimes"), 
+        shinyWidgets::awesomeCheckbox("show_explanation", "Show explanation.", value = TRUE), shiny::br(),
+        shiny::conditionalPanel(
+          condition = "input.show_explanation == true", 
+          shiny::HTML(
+            paste("How long does it take before changes in social distancing,", 
+                  " lockdowns, or other Covid-19 countermeasures take effect?", 
+                  "Perhaps longer than you'd think.")), 
+          shiny::br(), shiny::br(),
+          shiny::HTML(
+            paste("This shows daily deaths projections (lines) based on", 
+                  "the last few days of deaths (circle markers) available.")), 
+          shiny::br(), shiny::br(),
+          shiny::HTML(
+            paste("The projections are currently exponential models. ", 
+                  "[They are fitted to the last `Prediction period`, points", 
+                  "available, but if fewer points are shown, they will fit to fewer.]", 
+                  "Since models are fitted to specific points, the projection and", 
+                  "its associated doubling times (shown above) can be tweaked", 
+                  "by changing the `Prediction period` or `d-x shown`", 
+                  "(under extra options).")), 
+          shiny::br(), shiny::br(),
+          shiny::HTML(
+            paste("`Countermeasure effectiveness` assumes that today,", 
+                  "countermeasures are implemented to reduce R.", 
+                  "Over the following days, their effectiveness", 
+                  "(0 = no change in growth rate, 0.5 = R is halved, etc.)",
+                  "fades in according to the lognormal distribution for onset-to-death", 
+                  "<a href=https://www.mdpi.com/2077-0383/9/2/538/htm#table_body_display_jcm-09-00538-t002>", 
+                  "in Table 2</a>.")), 
+          shiny::br(), shiny::br(),
+          shinyWidgets::awesomeCheckbox("show_extra_explanation", "Please elaborate."), shiny::br(),
+          shiny::conditionalPanel(
+            condition = "input.show_extra_explanation == true", 
+            shiny::HTML(
+              paste("Up to 6 countries can be selected simultaneously,", 
+                    "but I don't recommend that; it's easy to show too much.")), 
+            shiny::br(), shiny::br(),
+            shiny::HTML(
+              paste("We use a cutoff for inclusion -- cumulative minimum deaths", 
+                    "to avoid dealing with countries for which there is barely", 
+                    "any data. `Minimum deaths` lets you tweak it.")),
+            shiny::br(), shiny::br(),
+            shiny::HTML(
+              paste("`Days shown` lets you zoom in and out to focus on seeing", 
+                    "the data (useful if there are only a few points) or seeing", 
+                    "the shape of the projection.")), 
+            shiny::br(), shiny::br(),
+            shiny::HTML(
+              paste("You can change the height of the plot under extra options.")), 
+            shiny::br(), shiny::br(),
+            shiny::HTML(
+              paste("To comment, offer help (including helping me find better", 
+                    "references or improve the math behind the models),", 
+                    "criticize, or borrow code, see",
+                    "<a href=https://github.com/IskanderBlue/canada_covid_19_>", 
+                    "https://github.com/IskanderBlue/canada_covid_19_</a>."))
+          ) # close conditionalPanel
+        ) # close conditionalPanel
+      ) # close column
+    ) # close fluidRow
+  ) # close dashboardBody
+) # close dashboardPage
 
 # Define server logic required
 server <- function(input, output, session) {
@@ -194,7 +281,8 @@ server <- function(input, output, session) {
     countries <- input[["countries_selected"]]
     plt <- plotly::plot_ly(type = 'scatter', mode = 'lines+markers',
                            height = input$plt_hei) 
-    color_iter <- c(1, 2)
+    
+    doubling_times <- list()
     for (i in countries) {
       plt_df <- valid_countries()[[1]] %>% 
         dplyr::rename(y=i) %>% # Rename the country to y for ease of use
@@ -206,6 +294,7 @@ server <- function(input, output, session) {
       fit_pos <- find_position(plt_df$y, input$pred_per) # Get positions of deaths to fit model
       periods <- plt_df$periods[fit_pos] # select only periods desired to fit model
       mdl <- lm(log(plt_df$y[fit_pos]+0.01) ~ periods) # fit model
+      doubling_times[[i]] <- round(log(2) / mdl$coefficients[[2]], 2)
       itrs <- plt_df$periods[length(plt_df$periods)] - periods[length(periods)] # Number of times to iterate through predict_not_na
       predicted <- exp(predict(mdl, list(periods=plt_df$periods[1:fit_pos[length(fit_pos)]]))) # "Predict" up to present with model
       predicted <- predict_for_na(predicted, itrs, mdl$coefficients[[2]], input$r) # predict based on model and reduction in R
@@ -235,9 +324,15 @@ server <- function(input, output, session) {
                      # paper_bgcolor = "rgb(0, 0, 0)", # Background behind/surrounding plot
                      # plot_bgcolor = "rgb(34, 45, 50)" # Plot background
                      )
-    return(plt)
+    
+    doubling_times <- doubling_times %>% as.data.frame() %>% t() 
+    colnames(doubling_times) <- "Doubling Times (days)"
+    
+    return(list(plt, doubling_times))
   })
-  output$days_since_min <- plotly::renderPlotly({plt()})
+  output$days_since_min <- plotly::renderPlotly({plt()[[1]]})
+  output$dtimes <- DT::renderDataTable({DT::datatable( plt()[[2]] , 
+                                                       options = list(dom = 'ti')) })
   
   # UI for selecting countries.
   output$country_selector <- shiny::renderUI({
