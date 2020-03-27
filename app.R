@@ -123,8 +123,9 @@ ui <- shinydashboard::dashboardPage(
   
   shinydashboard::dashboardSidebar(
 
-    shiny::uiOutput("country_selector"), shiny::br(),
-    shinyWidgets::noUiSliderInput(
+    shiny::uiOutput("country_selector"), shiny::br(), # Selects countries to include
+    
+    shinyWidgets::noUiSliderInput( # Slider to set countermeasure effectiveness
       inputId = "r", label = "Countermeasure effectiveness:", min = 0, max = 0.99, 
       value = 0.5, step = 0.01, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 2), 
