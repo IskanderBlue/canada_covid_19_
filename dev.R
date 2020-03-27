@@ -15,6 +15,8 @@ exp(1)*2
 doubler <- 0.693147
 exp(doubler)
 exp(-doubler)
+
+
 # Use doubler
 # take line
 # From 17 to 27 days out, (~~17 to 18.5 days from onset to death; ~5 days incubation)
@@ -99,12 +101,26 @@ plot(as.data.frame(diffed)$Canada)
 # The mean incubation period was 5.2 days (95% confidence interval [CI], 4.1 to 7.0), with the 95th percentile of the distribution at 12.5 days. In its early stages, the epidemic doubled in size every 7.4 days. With a mean serial interval of 7.5 days (95% CI, 5.3 to 19), the basic reproductive number was estimated to be 2.2 (95% CI, 1.4 to 3.9).
 
 # Can tack dates back in; better label than d+x
+
+
+
+# nls() for logistic curve
+
 plot(exp(1:10))
 x = rlnorm(500,1,.6)
-grid = seq(0,25,.1)
+plot(x)
+grid = seq(0,50,.1)
 ?dlnorm
 ?density
-plot(grid,dlnorm(grid,1,.6),type="h",xlab="x",ylab="f(x)")
+?nls
+?SSlogis
+mn <- 20.2
+sd <- 11.6
+mu <- log(mn) - 0.5* log((sd/mn)^2 + 1)
+sigma <- sqrt(log((sd/mn)^2+1))
+plnorm(1:20,mu,sigma) %>% round(2)
+plot(1:20,plnorm(1:20,mu,sigma),type="h",xlab="x",ylab="f(x)")
+?dlnorm
 lines(density(x),col="red")
 ?plot
 hist(x, breaks = 50, freq = FALSE)
@@ -145,4 +161,9 @@ vegLengths <- rbind(carrots, cukes)
 
 
 ggplot(vegLengths, aes(length, fill = veg)) + geom_density(alpha = 0.2)
-sc <- readRDS("simulate_cases.rds")
+
+exp(0.25*2.77)
+log(2)
+
+0.25/0.6931472
+0.6931472/0.25
