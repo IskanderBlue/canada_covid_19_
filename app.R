@@ -122,10 +122,9 @@ ui <- shinydashboard::dashboardPage(
     title = shiny::textOutput("days_since")), # Adjusts 'days since' according to min deaths inputted.
   
   shinydashboard::dashboardSidebar(
-    
-    shiny::uiOutput("country_selector"), shiny::br(), # Selects countries to include
-    
-    shinyWidgets::noUiSliderInput( # Slider to set countermeasure effectiveness
+
+    shiny::uiOutput("country_selector"), shiny::br(),
+    shinyWidgets::noUiSliderInput(
       inputId = "r", label = "Countermeasure effectiveness:", min = 0, max = 0.99, 
       value = 0.5, step = 0.01, orientation = ori, 
       format = shinyWidgets::wNumbFormat(decimals = 2), 
@@ -157,7 +156,7 @@ ui <- shinydashboard::dashboardPage(
         color = "#27ae60", inline = TRUE,
         height = hei, width = wid), shiny::br(),
       
-      shinyWidgets::awesomeCheckbox("show_extras", "Show even more extra options."), shiny::br(),
+      shinyWidgets::awesomeCheckbox("show_extras", "Show more extra options."), shiny::br(),
       
       shiny::conditionalPanel(
         condition = "input.show_extras == true", 
