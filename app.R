@@ -81,7 +81,12 @@ find_position <- function(vec, pred_per) {
 #' For a given `coef` and `reduction` of that coefficient, returns `vec` with 
 #' an additional `iterations` elements that have increased exponentially by 
 #' `coef` with `reduction` added slowly as a lognormal distribution.  
-#' See onset to death, https://www.mdpi.com/2077-0383/9/2/538/htm
+#' See incubation period and onset to death, 
+#' https://www.mdpi.com/2077-0383/9/2/538/htm
+#' No easy way to calculate sum of lognormal variables directly; instead, 
+#' I simulate a large number of draws from each distribution, sum them, and then 
+#' re-calculate a lognormal using the mean and sd of the summed draws.
+#' 
 #' @param vec vector of integers, predicted values
 #' @param iterations, integer, number of iterations to extend vec by
 predict_for_na <- function(vec, iterations, coef, reduction) {
@@ -89,12 +94,23 @@ predict_for_na <- function(vec, iterations, coef, reduction) {
     x * exp(cf - chng)
   }
   reduction <- log(1/(1-reduction)) # Convert countermeasure effectiveness to reduction in growth rate
-  mn <- 20.2 # Onset to death, https://www.mdpi.com/2077-0383/9/2/538/htm
-  sd <- 11.6 # sd of onset to death
-  mu <- log(mn) - 0.5* log((sd/mn)^2 + 1) # lognormal param
-  sigma <- sqrt(log((sd/mn)^2+1)) # lognormal param
-  prop_reduction <- plnorm(1:iterations,mu,sigma) # proportion of effect up to x days from change
+  lognormal_params_from_mean_sd <- function(mn, sd) {
+    mu <- log(mn) - 0.5* log((sd/mn)^2 + 1) # lognormal param
+    sigma <- sqrt(log((sd/mn)^2+1)) # lognormal param
+    return(list(mu = mu, sigma = sigma))
+  }
+  incubation_period <- lognormal_params_from_mean_sd(5.6, 3.9) # https://www.mdpi.com/2077-0383/9/2/538/htm
+  onset_to_death <- lognormal_params_from_mean_sd(20.2, 11.6)
+  # No good solution to summing lognormal variables.
+  # Using numerical approximation
+  ip_vec <- rlnorm(1000000,incubation_period$mu,incubation_period$sigma)
+  od_vec <- rlnorm(1000000,onset_to_death$mu,onset_to_death$sigma)
+  ip_plus_od <- ip_vec + od_vec
+  infection_to_death <- lognormal_params_from_mean_sd(mean(ip_plus_od), sd(ip_plus_od))
   
+  plot(plnorm(1:40,infection_to_death$mu,infection_to_death$sigma))
+  prop_reduction <- plnorm(1:iterations,infection_to_death$mu,infection_to_death$sigma) # proportion of effect up to x days from change
+
   if (iterations > 0) {
     for (i in 1:iterations) {
       vec <- c(vec, predder(vec[length(vec)], chng = prop_reduction[i] * reduction))
@@ -122,7 +138,7 @@ ui <- shinydashboard::dashboardPage(
     title = shiny::textOutput("days_since")), # Adjusts 'days since' according to min deaths inputted.
   
   shinydashboard::dashboardSidebar(
-
+    
     shiny::uiOutput("country_selector"), shiny::br(), # Selects countries to include
     
     shinyWidgets::noUiSliderInput( # Slider to set countermeasure effectiveness
@@ -194,7 +210,11 @@ ui <- shinydashboard::dashboardPage(
           shiny::br(), shiny::br(),
           shiny::HTML(
             paste("This shows daily deaths projections (lines) based on", 
-                  "the last few days of deaths (circle markers) available.")), 
+                  "the last few days of deaths (circle markers) available.", 
+                  "A richer model would take into account changes in population", 
+                  "behaviour (/ social distancing and/ or lockdown policy)", 
+                  "that have not yet shown up in the current death rates,", 
+                  "but I haven't managed that yet.")), 
           shiny::br(), shiny::br(),
           shiny::HTML(
             paste("The projections are currently exponential models. ", 
@@ -209,10 +229,13 @@ ui <- shinydashboard::dashboardPage(
             paste("`Countermeasure effectiveness` assumes that today,", 
                   "countermeasures are implemented to reduce R.", 
                   "Over the following days, their effectiveness", 
-                  "(0 = no change in growth rate, 0.5 = R is halved, etc.)",
-                  "fades in according to the lognormal distribution for onset-to-death", 
+                  "(0 = no change in growth rate, 0.5 = daily growth is halved, etc.)",
+                  "fades in according to a lognormal distribution estimated by", 
+                  "running a million draws from the lognormal distributions" ,
+                  "for incubation period and onset-to-death", 
                   "<a href=https://www.mdpi.com/2077-0383/9/2/538/htm#table_body_display_jcm-09-00538-t002>", 
-                  "in Table 2</a>.")), 
+                  "in Table 2</a>, then using their mean and std.dev to", 
+                  "calculate a third lognormal distribution.")), 
           shiny::br(), shiny::br(),
           shinyWidgets::awesomeCheckbox("show_extra_explanation", "Please elaborate."), shiny::br(),
           shiny::conditionalPanel(
@@ -275,7 +298,7 @@ server <- function(input, output, session) {
     merged_dates <- merged_dates[1:input$days, ]
     return(list(merged, merged_dates))
   })
-
+  
   # Build plotly plot 
   plt <- shiny::reactive({
     countries <- input[["countries_selected"]]
@@ -299,7 +322,7 @@ server <- function(input, output, session) {
       predicted <- exp(predict(mdl, list(periods=plt_df$periods[1:fit_pos[length(fit_pos)]]))) # "Predict" up to present with model
       predicted <- predict_for_na(predicted, itrs, mdl$coefficients[[2]], input$r) # predict based on model and reduction in R
       plt_df$preds <- predicted
-
+      
       plt <- plt %>%
         # Add prediction lines
         plotly::add_trace(data = plt_df, x = ~days, y = ~preds, 
@@ -323,7 +346,7 @@ server <- function(input, output, session) {
                        n = (length(countries) * 2), name = "Paired"))
                      # paper_bgcolor = "rgb(0, 0, 0)", # Background behind/surrounding plot
                      # plot_bgcolor = "rgb(34, 45, 50)" # Plot background
-                     )
+      )
     
     doubling_times <- doubling_times %>% as.data.frame() %>% t() 
     colnames(doubling_times) <- "Doubling Times (days)"
@@ -348,8 +371,8 @@ server <- function(input, output, session) {
   shiny::observeEvent(valid_countries()[[1]], {
     selected_countries <- input$countries_selected
     shiny::updateSelectizeInput(session, "countries_selected", 
-                            choices = names(valid_countries()[[1]])[-1], 
-                            selected = selected_countries)
+                                choices = names(valid_countries()[[1]])[-1], 
+                                selected = selected_countries)
   }, ignoreInit = TRUE)
   
   # Ensure days before min deaths reached never crowd out d+0.
